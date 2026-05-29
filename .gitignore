@@ -1,0 +1,10 @@
+# Exported TorchScript models (large binaries)
+*.ts
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.DS_Store
