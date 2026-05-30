@@ -47,7 +47,11 @@ The exported model exposes three nn~ methods:
 - **Buffer size must be a multiple of 8192 samples** (2 latent frames). 8192, 16384, ... work; 4096 does **not**. This has to be set through the third argument in `nn~`: `nn~ same_s decode 8192`.
 - **Latency.** Defaults `--left 2 --right 2`: add about round-trip 400 ms latency due to cached buffer, plus the `nn~` buffer. 
 
+### Scripting Patch Cords 
 
+SAME-S has a 256 dimensional latent space. To automatically make patch cords, set the `varname` attribute of both `nn~` to 'encoder' and 'decoder', then use the `connection.js` in `demo.maxpat`:
+
+<img src="docs/max.png" width=500></img>
 
 ## Notes  
 
