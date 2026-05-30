@@ -69,6 +69,7 @@ def main() -> None:
     ap.add_argument("--device", default=None, help="mps | cuda | cpu (default: auto). Use cpu for the most portable nn~ artifact.")
     ap.add_argument("--left", type=int, default=2, help="left-context latent frames (even)")
     ap.add_argument("--right", type=int, default=2, help="lookahead latent frames (even); drives latency")
+    ap.add_argument("--no-streaming", action="store_true", help="naive per-buffer export: zero added latency, but clicks at buffer seams")
     ap.add_argument("--validate", action="store_true")
     args = ap.parse_args()
 
@@ -77,12 +78,17 @@ def main() -> None:
     core, ae = load_same_s_ts(device=device, model=args.model)
     spl = int(ae.downsampling_ratio)
 
+    left, right = args.left, args.right
+    if args.no_streaming:
+        left = right = 0
+        print("--no-streaming: naive per-buffer export (zero added latency, expect clicking at buffer seams)")
+
     wrap = StreamingSAMETS(
         core,
         sample_rate=ae.sample_rate,
         downsampling_ratio=spl,
-        left=args.left,
-        right=args.right,
+        left=left,
+        right=right,
         test_device=device,
     ).to(device).eval()
 
@@ -95,8 +101,8 @@ def main() -> None:
     wrap.export_to_ts(args.out)
     print(
         f"Done. nn~ methods: forward/encode/decode. Buffer size must be a multiple of "
-        f"{2 * spl} samples. encode/decode latency {args.right} frames, "
-        f"round-trip {2 * args.right} frames."
+        f"{2 * spl} samples. encode/decode latency {right} frames, "
+        f"round-trip {2 * right} frames."
     )
 
 

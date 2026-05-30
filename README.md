@@ -28,6 +28,13 @@ uv run streamable-same-s-export --device cpu --validate --out same_s.ts
 
 Then load `same_s.ts` in an `nn~` object in Max/MSP and pick a method.
 
+To export a **naive, zero-latency** model instead — each buffer processed independently, simpler
+but with audible **clicks** at buffer seams — pass `--no-streaming`:
+
+```bash
+uv run streamable-same-s-export --device cpu --no-streaming --out same_s_naive.ts
+```
+
 ## How it works
 
 The production SAME model is not `torch.jit.script`-able (flash-/flex-attention branches,
