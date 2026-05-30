@@ -1,55 +1,42 @@
-# streamable-same-s
+# Streamable SAME Autoencoder 
 
-Export the **SAME-S** music autoencoder to a TorchScript `.ts` for the
-[`nn~`](https://github.com/acids-ircam/nn_tilde) external (Max/MSP, PureData), with
-**click-free real-time streaming baked in**. The exported model exposes three nn~ methods:
-`forward` (audio round-trip), `encode` (audio → latents), `decode` (latents → audio).
+Export the **SAME-S (Semantically-Aligned Music Autoencoder)** autoencoder in [Stable Audio 3](https://github.com/Stability-AI/stable-audio-3) to TorchScript for the [`nn~`](https://github.com/acids-ircam/nn_tilde) external in Max/MSP and PureData, for realtime continuous inference. 
 
-This is the focused export layer extracted from the Stable Audio 3 repo. It contains a clean,
-TorchScript-scriptable reimplementation of SAME-S plus the cached-streaming nn~ wrapper, and
-reuses [`stable-audio-3`](https://github.com/Stability-AI/stable-audio-3) only to load the
-pretrained weights.
+It adds a **causal overlap** (each call runs over cached buffer + new buffer) to enable streamable continuous inference, without clicking artefacts.
+
+https://github.com/user-attachments/assets/5c98585f-cb74-4653-aabc-a565c4262ca0
+
+
 
 ## Install
-
-Requires a local checkout of `stable-audio-3` next to this repo (see `[tool.uv.sources]` in
-`pyproject.toml`; swap to a git source to share).
+We use [`uv`](https://docs.astral.sh/uv/) for fast, lightweight installs.
 
 ```bash
 uv sync
 ```
+(This will local clone of `stable-audio-3` next to this repo, see `[tool.uv.sources]` in
+`pyproject.toml`).
+
 
 ## Export
 
 ```bash
-# default device auto-selects mps/cuda/cpu; use --device cpu for the most portable artifact
+# default device auto-selects mps/cuda/cpu
 uv run streamable-same-s-export --device cpu --validate --out same_s.ts
 ```
 
 Then load `same_s.ts` in an `nn~` object in Max/MSP and pick a method.
 
-To export a **naive, zero-latency** model instead — each buffer processed independently, simpler
-but with audible **clicks** at buffer seams — pass `--no-streaming`:
+To export a zero-latency model without the causal overlap, pass `--no-streaming`. This will add an audible clicks in between buffers:
 
 ```bash
-uv run streamable-same-s-export --device cpu --no-streaming --out same_s_naive.ts
+uv run streamable-same-s-export --device cpu --no-streaming --out same_s_click.ts
 ```
 
-## How it works
-
-The production SAME model is not `torch.jit.script`-able (flash-/flex-attention branches,
-`**kwargs`, varlen `Dict` metadata, `torch.utils.checkpoint`, einops). So
-[`same_s_ts.py`](streamable_same_s/same_s_ts.py) reimplements the SAME-S math single-path with
-TorchScript-safe ops only; it is numerically faithful to the original (decode bit-exact, encode
-~100 dB SNR) and loads the same weights via
-[`load.py`](streamable_same_s/load.py) (which uses stable-audio-3's `load_autoencoder`).
-
-`nn~` calls the model on independent fixed buffers, which for a non-causal transformer would
-click at every seam. [`nn_tilde_wrapper.py`](streamable_same_s/nn_tilde_wrapper.py) bakes in
-**causal fixed-latency overlap-save**: each call runs one pass over `[cached real context | new
-buffer]` and emits only the validated central region, with state kept in registered buffers.
-
 ## nn~ usage notes
+
+The exported model exposes three nn~ methods:
+`forward` (audio round-trip), `encode` (audio → latents), `decode` (latents → audio).
 
 | Method | in → out | nn~ ratios (in/out) | latency |
 |---|---|---|---|
@@ -57,16 +44,12 @@ buffer]` and emits only the validated central region, with state kept in registe
 | `encode`  | audio (2) → latents (256) | 1 / 4096 | `right` frames |
 | `decode`  | latents (256) → audio (2) | 4096 / 1 | `right` frames |
 
-- **Buffer size must be a multiple of 8192 samples** (2 latent frames — the model's chunk-fold
-  alignment). 8192, 16384, … work; 4096 does **not**.
-- **Latency.** Defaults `--left 2 --right 2`: encode/decode add ~186 ms, round-trip ~372 ms, plus
-  the nn~ buffer. Inherent to the 4096× compression with frozen weights. The first `right`
-  (encode/decode) or `2*right` (forward) frames of output are warmup fill — expected, not an artefact.
-- **Precision/device.** fp32 (~413 MB); runs on CPU/CUDA/MPS. Export with `--device cpu` for the
-  most portable artifact.
+- **Buffer size must be a multiple of 8192 samples** (2 latent frames). 8192, 16384, ... work; 4096 does **not**. This has to be set through the third argument in `nn~`: `nn~ same_s decode 8192`.
+- **Latency.** Defaults `--left 2 --right 2`: add about round-trip 400 ms latency due to cached buffer, plus the `nn~` buffer. 
 
-## Development
 
-```bash
-uv run --extra dev pytest        # network-free smoke test (no checkpoint needed)
-```
+
+## Notes  
+
+Model License: see [Stability AI Community License](https://stability.ai/license)
+Research Paper: [https://arxiv.org/abs/2605.18613](https://arxiv.org/abs/2605.18613)
